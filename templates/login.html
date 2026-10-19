@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Log in — Granted Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body class="login-body">
+  <form class="login-card" method="post">
+    <h1>Granted <span>Admin</span></h1>
+    <p>Sign in to the dashboard.</p>
+    {% if error %}<p class="flash error">{{ error }}</p>{% endif %}
+    <label>Password
+      <input type="password" name="password" required autofocus />
+    </label>
+    <button type="submit">Log in</button>
+  </form>
+</body>
+</html>

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Survey Results — Granted Admin{% endblock %}
+{% block content %}
+  <h1>Survey · Results</h1>
+  <p class="lede">Every survey, with respondent counts. Open one to see answers by question.</p>
+  <section class="panel">
+    {% if surveys %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Date</th>
+              <th>Round</th>
+              <th>Pilot</th>
+              <th>Respondents</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in surveys %}
+              <tr>
+                <td><a href="{{ url_for('survey_result', surveyid=s.surveyid) }}">{{ s.title }}</a></td>
+                <td>{{ s.surveyDate }}</td>
+                <td>{{ s.round }}</td>
+                <td>{{ s.pilot_name }}</td>
+                <td>{{ s.respondents }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">No data yet</p>
+    {% endif %}
+  </section>
+{% endblock %}

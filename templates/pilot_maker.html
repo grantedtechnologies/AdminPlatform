@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{% if pilotid %}Edit pilot{% else %}Pilot Maker{% endif %} — Granted Admin{% endblock %}
+{% block content %}
+  <h1>{% if pilotid %}Edit pilot{% else %}Pilot Maker{% endif %}</h1>
+  <p class="lede">{% if pilotid %}Update this window, then return to the calendar.{% else %}Create a pilot window and code.{% endif %}</p>
+  {% if errors %}
+    <ul class="flash error">
+      {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+  <form class="stack panel" method="post">
+    <label>Name
+      <input type="text" name="name" value="{{ values.name }}" required />
+    </label>
+    <label>School
+      <input type="text" name="school" value="{{ values.school }}" required />
+    </label>
+    <label>District
+      <input type="text" name="district" value="{{ values.district }}" required />
+    </label>
+    <label>Code
+      <input type="text" name="code" value="{{ values.code }}" required />
+    </label>
+    <label>Start
+      <input type="datetime-local" name="start" value="{{ values.start }}" required />
+    </label>
+    <label>End
+      <input type="datetime-local" name="end" value="{{ values.end }}" required />
+    </label>
+    <button type="submit">{% if pilotid %}Save changes{% else %}Create pilot{% endif %}</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Survey Maker — Granted Admin{% endblock %}
+{% block content %}
+  <h1>Survey Maker</h1>
+  <p class="lede">Create a baseline, follow-up, or standalone survey. Questions can be rating, number, or text.</p>
+  {% if errors %}
+    <ul class="flash error">
+      {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+  <form class="stack panel" method="post" id="survey-form">
+    <label>Title
+      <input type="text" name="title" value="{{ values.title }}" required />
+    </label>
+    <label>Description
+      <textarea name="description" rows="3" required>{{ values.description }}</textarea>
+    </label>
+    <label>Round
+      <select name="baseline">
+        <option value="1" {% if values.baseline == '1' %}selected{% endif %}>Baseline</option>
+        <option value="0" {% if values.baseline == '0' %}selected{% endif %}>Follow-up</option>
+        <option value="" {% if values.baseline == '' %}selected{% endif %}>Standalone</option>
+      </select>
+    </label>
+    <label>Pilot (optional)
+      <select name="pilotid">
+        <option value="">None</option>
+        {% for p in pilots %}
+          <option value="{{ p.pilotid }}" {% if values.pilotid == p.pilotid|string %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div>
+      <h2>Questions</h2>
+      <div id="questions">
+        {% for q in values.questions %}
+          <div class="question-row">
+            <input type="text" name="question_text" value="{{ q.content }}" placeholder="Question" required />
+            <select name="question_type">
+              <option value="rating" {% if q.questionType == 'rating' %}selected{% endif %}>Rating</option>
+              <option value="number" {% if q.questionType == 'number' %}selected{% endif %}>Number</option>
+              <option value="text" {% if q.questionType == 'text' %}selected{% endif %}>Text</option>
+            </select>
+            <button type="button" class="ghost remove-question">Remove</button>
+          </div>
+        {% endfor %}
+      </div>
+      <button type="button" class="ghost" id="add-question">Add question</button>
+    </div>
+    <button type="submit">Create survey</button>
+  </form>
+{% endblock %}
+{% block extra_js %}
+<script>
+  const list = document.getElementById("questions");
+  document.getElementById("add-question").addEventListener("click", function () {
+    const row = document.createElement("div");
+    row.className = "question-row";
+    row.innerHTML = '<input type="text" name="question_text" placeholder="Question" required />'
+      + '<select name="question_type">'
+      + '<option value="rating">Rating</option>'
+      + '<option value="number">Number</option>'
+      + '<option value="text">Text</option>'
+      + '</select>'
+      + '<button type="button" class="ghost remove-question">Remove</button>';
+    list.appendChild(row);
+  });
+  list.addEventListener("click", function (event) {
+    if (!event.target.classList.contains("remove-question")) return;
+    const rows = list.querySelectorAll(".question-row");
+    if (rows.length === 1) return;
+    event.target.closest(".question-row").remove();
+  });
+</script>
+{% endblock %}

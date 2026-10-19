@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ survey.title if survey else 'Survey' }} — Granted Admin{% endblock %}
+{% block content %}
+  {% if not survey %}
+    <h1>Survey not found</h1>
+    <p class="lede">That survey does not exist. <a href="{{ url_for('survey_results') }}">Back to all surveys</a>.</p>
+  {% else %}
+    <h1>{{ survey.title }}</h1>
+    <p class="lede">{{ survey.round }} · {{ survey.pilot_name }} · {{ survey.respondents }} respondents</p>
+    <p id="status" class="status">Loading…</p>
+    <div id="result-charts"></div>
+    <section class="panel">
+      <h2>Text answers</h2>
+      <div id="text-answers"></div>
+    </section>
+  {% endif %}
+{% endblock %}
+{% block extra_js %}
+  {% if survey %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="{{ url_for('static', filename='charts.js') }}"></script>
+  <script>Granted.surveyDetailPage("{{ url_for('api_survey_result', surveyid=survey.surveyid) }}");</script>
+  {% endif %}
+{% endblock %}

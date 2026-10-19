@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — Granted Admin{% endblock %}
+{% block content %}
+  <h1>Monitoring · Audit Log</h1>
+  <p class="lede">Recent events. Failed rows are highlighted. The chart is all-time failures by event type.</p>
+  <p id="status" class="status">Loading…</p>
+  <section class="panel">
+    <h2>Failures by event type</h2>
+    <div class="chart-wrap"><canvas id="failure-chart"></canvas><p class="empty" hidden>No data yet</p></div>
+  </section>
+  <section class="panel">
+    <h2>Events</h2>
+    {% if rows %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Event</th>
+              <th>Teacher</th>
+              <th>Status</th>
+              <th>Error</th>
+              <th>Entity</th>
+              <th>IP</th>
+              <th>Pilot</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr class="{% if not row.success %}failed{% endif %}">
+                <td>{{ row.eventTime }}</td>
+                <td>{{ row.eventType }}</td>
+                <td>{% if row.fname %}{{ row.fname }} {{ row.lname }}{% else %}—{% endif %}</td>
+                <td>{{ row.statusCode if row.statusCode is not none else '—' }}</td>
+                <td>{{ row.errorMessage or '—' }}</td>
+                <td>{% if row.entity %}{{ row.entity }} {{ row.entityid }}{% else %}—{% endif %}</td>
+                <td>{{ row.ip or '—' }}</td>
+                <td>{{ row.pilotid if row.pilotid is not none else '—' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="pager">
+        {% if page > 1 %}
+          <a href="{{ url_for('monitoring_audit', page=page-1) }}">Previous</a>
+        {% endif %}
+        <span>Page {{ page }}</span>
+        {% if has_next %}
+          <a href="{{ url_for('monitoring_audit', page=page+1) }}">Next</a>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="empty">No data yet</p>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block extra_js %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="{{ url_for('static', filename='charts.js') }}"></script>
+  <script>Granted.auditPage("{{ url_for('api_monitoring_audit') }}");</script>
+{% endblock %}

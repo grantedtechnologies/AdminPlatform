@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Granted Admin{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('home') }}">Granted <span>Admin</span></a>
+    <button class="nav-toggle" type="button" aria-label="Menu">Menu</button>
+    <nav id="site-nav">
+      <a href="{{ url_for('home') }}" class="{% if section == 'home' %}active{% endif %}">Home</a>
+      <div class="drop {% if section == 'analytics' %}active{% endif %}">
+        <button type="button">Analytics</button>
+        <div class="menu">
+          <a href="{{ url_for('analytics_features') }}">Features</a>
+          <a href="{{ url_for('analytics_usage') }}">Usage</a>
+        </div>
+      </div>
+      <div class="drop {% if section == 'pilot' %}active{% endif %}">
+        <button type="button">Pilot</button>
+        <div class="menu">
+          <a href="{{ url_for('pilot_calendar') }}">Calendar</a>
+          <a href="{{ url_for('pilot_maker') }}">Pilot Maker</a>
+          <a href="{{ url_for('pilot_features') }}">Pilot Features</a>
+          <a href="{{ url_for('pilot_usage') }}">Pilot Usage</a>
+        </div>
+      </div>
+      <div class="drop {% if section == 'survey' %}active{% endif %}">
+        <button type="button">Survey</button>
+        <div class="menu">
+          <a href="{{ url_for('survey_maker') }}">Survey Maker</a>
+          <a href="{{ url_for('survey_feedback') }}">Feedback Review</a>
+          <a href="{{ url_for('survey_results') }}">Survey Results</a>
+        </div>
+      </div>
+      <div class="drop {% if section == 'monitoring' %}active{% endif %}">
+        <button type="button">Monitoring</button>
+        <div class="menu">
+          <a href="{{ url_for('monitoring_audit') }}">Audit Log</a>
+        </div>
+      </div>
+      <div class="drop {% if section == 'testing' %}active{% endif %}">
+        <button type="button">Testing</button>
+        <div class="menu">
+          <a href="{{ url_for('testing') }}">Overview</a>
+        </div>
+      </div>
+      <a class="logout" href="{{ url_for('logout') }}">Log out</a>
+    </nav>
+  </header>
+  <main class="page">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <p class="flash {{ category }}">{{ message }}</p>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    document.querySelector(".nav-toggle").addEventListener("click", function () {
+      document.getElementById("site-nav").classList.toggle("open");
+    });
+    document.querySelectorAll(".drop > button").forEach(function (button) {
+      button.addEventListener("click", function () {
+        button.parentElement.classList.toggle("open");
+      });
+    });
+  </script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

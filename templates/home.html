@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Home — Granted Admin{% endblock %}
+{% block content %}
+  <h1>Granted Admin Dashboard</h1>
+  <p class="lede">
+    This dashboard is for watching how teachers use Granted: the AI reading-worksheet app.
+    Analytics pages exclude teachers who are on a pilot. Pilot pages look at one pilot at a time.
+  </p>
+
+  <section class="home-grid">
+    <article class="panel">
+      <h2>Analytics</h2>
+      <p>Regular (non-pilot) teachers only.</p>
+      <h3><a href="{{ url_for('analytics_features') }}">Features</a></h3>
+      <p>Phonics, vocab lists, and custom DOK over time, plus how many teachers have tried each one. Answers: are teachers using the options we built?</p>
+      <h3><a href="{{ url_for('analytics_usage') }}">Usage</a></h3>
+      <p>Worksheets, signups, active teachers, approximate time in the app, edits, the core funnel, and return visits. Answers: are teachers coming back and finishing the loop?</p>
+    </article>
+
+    <article class="panel">
+      <h2>Pilot</h2>
+      <p>One pilot at a time, except the calendar which shows every window.</p>
+      <h3><a href="{{ url_for('pilot_calendar') }}">Calendar</a></h3>
+      <p>When each pilot starts and ends, and how many teachers are in it. Answers: which windows are live, upcoming, or over?</p>
+      <h3><a href="{{ url_for('pilot_maker') }}">Pilot Maker</a></h3>
+      <p>Create or edit a pilot name, school, code, and dates. Answers: can we stand up or correct a window without touching the database by hand?</p>
+      <h3><a href="{{ url_for('pilot_features') }}">Pilot Features</a></h3>
+      <p>The same feature charts as Analytics, filtered to one pilot. Answers: is this cohort using phonics, vocab, and custom DOK?</p>
+      <h3><a href="{{ url_for('pilot_usage') }}">Pilot Usage</a></h3>
+      <p>The same usage charts as Analytics, plus grade and subject mix. Answers: how is this pilot actually using Granted?</p>
+    </article>
+
+    <article class="panel">
+      <h2>Survey</h2>
+      <h3><a href="{{ url_for('survey_maker') }}">Survey Maker</a></h3>
+      <p>Build a baseline, follow-up, or standalone survey with rating, number, or text questions. Answers: can we collect the next round of teacher feedback?</p>
+      <h3><a href="{{ url_for('survey_feedback') }}">Feedback Review</a></h3>
+      <p>Worksheet ratings by version source, the rating mix, and recent comments. Answers: what do teachers think of generated work?</p>
+      <h3><a href="{{ url_for('survey_results') }}">Survey Results</a></h3>
+      <p>Response counts for each survey and a breakdown per question. Answers: what did teachers tell us in this round?</p>
+    </article>
+
+    <article class="panel">
+      <h2>Monitoring</h2>
+      <h3><a href="{{ url_for('monitoring_audit') }}">Audit Log</a></h3>
+      <p>Recent events, with failures highlighted, and a chart of which event types fail. Answers: what broke, and how often?</p>
+    </article>
+
+    <article class="panel">
+      <h2>Testing</h2>
+      <h3><a href="{{ url_for('testing') }}">Overview</a></h3>
+      <p>Load and stress pages will land here. For now this is a placeholder.</p>
+    </article>
+  </section>
+{% endblock %}

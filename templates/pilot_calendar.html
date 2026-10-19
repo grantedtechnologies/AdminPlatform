@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Pilot Calendar — Granted Admin{% endblock %}
+{% block content %}
+  <h1>Pilot · Calendar</h1>
+  <p class="lede">Each bar is a pilot window. Color is upcoming, active, or ended.</p>
+  <p id="status" class="status">Loading…</p>
+  <section class="panel">
+    <div id="calendar"></div>
+  </section>
+  <section class="panel">
+    <h2>All pilots</h2>
+    {% if pilots %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>School</th>
+              <th>Code</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Status</th>
+              <th>Teachers</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in pilots %}
+              <tr>
+                <td>{{ p.name }}</td>
+                <td>{{ p.school }}</td>
+                <td>{{ p.code }}</td>
+                <td>{{ p.startTime }}</td>
+                <td>{{ p.endTime }}</td>
+                <td><span class="badge {{ p.status }}">{{ p.status }}</span></td>
+                <td>{{ p.teachers }}</td>
+                <td><a href="{{ url_for('pilot_maker', pilotid=p.pilotid) }}">Edit</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">No data yet</p>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block extra_js %}
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <script src="{{ url_for('static', filename='charts.js') }}"></script>
+  <script>Granted.calendarPage("{{ url_for('api_pilot_calendar') }}");</script>
+{% endblock %}

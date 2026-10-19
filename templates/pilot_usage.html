@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Pilot Usage — Granted Admin{% endblock %}
+{% block content %}
+  <h1>Pilot · Usage</h1>
+  <p class="lede">Same charts as Analytics, for one pilot at a time, plus grade and subject mix.</p>
+  <form class="toolbar" method="get">
+    <label>Pilot
+      <select name="pilotid" onchange="this.form.submit()">
+        <option value="">Select a pilot</option>
+        {% for p in pilots %}
+          <option value="{{ p.pilotid }}" {% if selected == p.pilotid %}selected{% endif %}>{{ p.name }} ({{ p.status }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if selected %}
+      <label>From <input type="date" id="start-date"></label>
+      <label>To <input type="date" id="end-date"></label>
+    {% endif %}
+  </form>
+  {% if not selected %}
+    <p class="empty-page">Select a pilot to see usage for that cohort.</p>
+  {% else %}
+    <p id="status" class="status">Loading…</p>
+    <div class="cards" id="retention-cards"></div>
+    <section class="panel">
+      <h2>Worksheets per day</h2>
+      <div class="chart-wrap"><canvas id="worksheets-chart"></canvas><p class="empty" hidden>No data yet</p></div>
+    </section>
+    <section class="panel">
+      <h2>Signups and active teachers</h2>
+      <div class="chart-wrap"><canvas id="activity-chart"></canvas><p class="empty" hidden>No data yet</p></div>
+    </section>
+    <div class="split">
+      <section class="panel">
+        <h2>Approximate active hours per day</h2>
+        <div class="chart-wrap"><canvas id="hours-chart"></canvas><p class="empty" hidden>No data yet</p></div>
+      </section>
+      <section class="panel">
+        <h2>Edited vs not edited</h2>
+        <div class="chart-wrap"><canvas id="edit-chart"></canvas><p class="empty" hidden>No data yet</p></div>
+      </section>
+    </div>
+    <section class="panel">
+      <h2>Funnel</h2>
+      <div class="chart-wrap chart-tall"><canvas id="funnel-chart"></canvas><p class="empty" hidden>No data yet</p></div>
+    </section>
+    <section class="panel">
+      <h2>Days active</h2>
+      <div class="chart-wrap"><canvas id="retention-chart"></canvas><p class="empty" hidden>No data yet</p></div>
+    </section>
+    <section class="panel">
+      <h2>Teachers by grade and subject</h2>
+      <div class="chart-wrap"><canvas id="types-chart"></canvas><p class="empty" hidden>No data yet</p></div>
+    </section>
+  {% endif %}
+{% endblock %}
+{% block extra_js %}
+  {% if selected %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="{{ url_for('static', filename='charts.js') }}"></script>
+  <script>Granted.usagePage("{{ url_for('api_pilot_usage', pilotid=selected) }}", { teacherTypes: true });</script>
+  {% endif %}
+{% endblock %}
