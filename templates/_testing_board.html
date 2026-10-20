@@ -1,0 +1,31 @@
+<div class="test-head">
+  <div>
+    <h1>Testing · {{ profile|capitalize }}</h1>
+    <p class="lede">{{ intro }}</p>
+  </div>
+  <button class="ghost" type="button" id="reset">Clear marks</button>
+</div>
+<p class="status" id="status">Click a square to start that test.</p>
+<div class="test-layout">
+  <section class="board">
+    {% for row in rows %}
+    <div class="label">
+      <span>{{ row.label }}</span>
+      <span class="about">{{ row.about }}</span>
+      <button type="button" class="full-test" data-kind="{{ row.kind }}">Full test</button>
+    </div>
+    {% for cell in row.cells %}
+    <button class="cell" type="button" data-id="{{ cell.id }}" data-label="{{ row.label }}, {{ cell.name }}" data-seconds="{{ cell.seconds }}">
+      <span class="level">{{ cell.name }}</span>
+      <span class="meta">{{ cell.meta }}</span>
+      <span class="result" hidden></span>
+    </button>
+    {% endfor %}
+    {% endfor %}
+  </section>
+  <aside class="stats" id="stats">
+    <h2>Results</h2>
+    <p class="stats-note" id="stats-note">Click a square. Timing shows up here when it finishes.</p>
+    <div id="stats-body" hidden></div>
+  </aside>
+</div>

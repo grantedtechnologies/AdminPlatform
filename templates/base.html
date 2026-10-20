@@ -49,13 +49,16 @@
       <div class="drop {% if section == 'testing' %}active{% endif %}">
         <button type="button">Testing</button>
         <div class="menu">
-          <a href="{{ url_for('testing') }}">Overview</a>
+          <a href="{{ url_for('testing_load') }}">Load</a>
+          <a href="{{ url_for('testing_stress') }}">Stress</a>
+          <a href="{{ url_for('testing_spike') }}">Spike</a>
+          <a href="{{ url_for('testing_custom') }}">Custom</a>
         </div>
       </div>
       <a class="logout" href="{{ url_for('logout') }}">Log out</a>
     </nav>
   </header>
-  <main class="page">
+  <main class="page {% block page_class %}{% endblock %}">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}

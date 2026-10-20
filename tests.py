@@ -4,13 +4,19 @@ Each scenario is one pass a virtual user repeats. A run ramps the number of
 users through stages, the same shape the old k6 profiles used.
 """
 import math
+import os
 import re
 import threading
 import time
 
 import requests
+from dotenv import load_dotenv
 
-BASE = "https://grantedreading-production-3e95.up.railway.app"
+load_dotenv()
+
+BASE = (os.getenv("TEST_BASE_URL") or "").rstrip("/")
+if not BASE:
+    raise RuntimeError("Set TEST_BASE_URL in .env to the Granted app URL to test against.")
 TEACHER = {"email": "luis.rivera@granted.local", "password": "password123"}
 VERIFY_EMAIL = "k6.verify@granted.local"
 GENERATE_BODY = {

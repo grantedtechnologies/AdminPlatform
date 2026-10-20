@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Custom tests — Granted Admin{% endblock %}
+{% block page_class %}wide{% endblock %}
+{% block content %}
+  <div class="test-head">
+    <div>
+      <h1>Testing · Custom</h1>
+      <p class="lede">{{ intro }}</p>
+    </div>
+    <button class="ghost" type="button" id="reset">Clear marks</button>
+  </div>
+  <p class="status" id="status">Pick a test, then choose how long it runs and how many users.</p>
+  <div class="test-layout">
+    <form class="custom-card" id="custom-card">
+      <label>Test
+        <select id="custom-kind">
+          {% for kind in kinds %}
+          <option value="{{ kind.id }}">{{ kind.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <p class="about" id="custom-about"></p>
+      <label>Duration (minutes)
+        <input id="custom-minutes" type="number" min="1" max="120" value="3" required />
+      </label>
+      <label>Users
+        <input id="custom-users" type="number" min="1" max="500" value="3" required />
+      </label>
+      <button class="start" type="submit">Start test</button>
+      <p class="result" hidden></p>
+    </form>
+    <aside class="stats" id="stats">
+      <h2>Results</h2>
+      <p class="stats-note" id="stats-note">Pick a test, then choose how long it runs and how many users.</p>
+      <div id="stats-body" hidden></div>
+    </aside>
+  </div>
+{% endblock %}
+{% block extra_js %}
+  <script>window.TEST_KINDS = {{ kinds|tojson }};</script>
+  <script src="{{ url_for('static', filename='testing.js') }}"></script>
+{% endblock %}

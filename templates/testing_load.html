@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Load tests — Granted Admin{% endblock %}
+{% block page_class %}wide{% endblock %}
+{% block content %}
+  {% include "_testing_board.html" %}
+{% endblock %}
+{% block extra_js %}
+  <script src="{{ url_for('static', filename='testing.js') }}"></script>
+{% endblock %}
