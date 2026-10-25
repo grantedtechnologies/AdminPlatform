@@ -97,7 +97,7 @@ def _pilot_form_values(form=None, pilot=None):
         return {
             "name": form.get("name", "").strip(),
             "school": form.get("school", "").strip(),
-            "district": form.get("district", "").strip(),
+            "districtid": form.get("districtid", "").strip(),
             "code": form.get("code", "").strip(),
             "start": form.get("start", "").strip(),
             "end": form.get("end", "").strip(),
@@ -106,12 +106,12 @@ def _pilot_form_values(form=None, pilot=None):
         return {
             "name": pilot["name"],
             "school": pilot["school"],
-            "district": pilot.get("district") or "",
+            "districtid": str(pilot["districtid"]) if pilot.get("districtid") is not None else "",
             "code": pilot["code"],
             "start": _dt_local(pilot["startTime"]),
             "end": _dt_local(pilot["endTime"]),
         }
-    return {"name": "", "school": "", "district": "", "code": "", "start": "", "end": ""}
+    return {"name": "", "school": "", "districtid": "", "code": "", "start": "", "end": ""}
 
 
 def _validate_pilot(values):
@@ -120,8 +120,13 @@ def _validate_pilot(values):
         errors.append("Name is required.")
     if not values["school"]:
         errors.append("School is required.")
-    if not values["district"]:
+    if not values["districtid"]:
         errors.append("District is required.")
+    else:
+        try:
+            int(values["districtid"])
+        except (TypeError, ValueError):
+            errors.append("Choose a valid district.")
     if not values["code"]:
         errors.append("Code is required.")
     if not values["start"] or not values["end"]:
@@ -217,15 +222,30 @@ def api_pilot_calendar():
 @app.route("/pilot/maker", methods=["GET", "POST"])
 @admin_required
 def pilot_maker():
+    districts = db.all_districts()
     raw_id = request.args.get("pilotid")
     pilotid = None
     if raw_id not in (None, ""):
         try:
             pilotid = int(raw_id)
         except (TypeError, ValueError):
-            return render_template("pilot_maker.html", section="pilot", pilot=None, values=_pilot_form_values(), errors=["That pilot was not found."]), 404
+            return render_template(
+                "pilot_maker.html",
+                section="pilot",
+                pilotid=None,
+                values=_pilot_form_values(),
+                districts=districts,
+                errors=["That pilot was not found."],
+            ), 404
         if not db.get_pilot(pilotid):
-            return render_template("pilot_maker.html", section="pilot", pilot=None, values=_pilot_form_values(), errors=["That pilot was not found."]), 404
+            return render_template(
+                "pilot_maker.html",
+                section="pilot",
+                pilotid=None,
+                values=_pilot_form_values(),
+                districts=districts,
+                errors=["That pilot was not found."],
+            ), 404
 
     errors = []
     values = _pilot_form_values(pilot=db.get_pilot(pilotid) if pilotid else None)
@@ -233,10 +253,11 @@ def pilot_maker():
     if request.method == "POST":
         values = _pilot_form_values(form=request.form)
         errors = _validate_pilot(values)
+        district = None
         if not errors:
-            district = db.find_district_by_name(values["district"])
+            district = db.get_district(int(values["districtid"]))
             if not district:
-                errors.append("No district with that exact name was found.")
+                errors.append("Choose a valid district.")
         if not errors:
             try:
                 if pilotid:
@@ -274,6 +295,7 @@ def pilot_maker():
         section="pilot",
         pilotid=pilotid,
         values=values,
+        districts=districts,
         errors=errors,
     )
 

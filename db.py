@@ -194,9 +194,18 @@ def all_pilots():
     return _query(sql)
 
 
-def find_district_by_name(name):
-    sql = "SELECT districtid, name FROM districts WHERE name = %s LIMIT 1"
-    return _query(sql, (name,), one=True)
+def all_districts():
+    sql = """
+        SELECT districtid, name, city, state
+        FROM districts
+        ORDER BY state, name
+    """
+    return _query(sql)
+
+
+def get_district(districtid):
+    sql = "SELECT districtid, name, city, state FROM districts WHERE districtid = %s"
+    return _query(sql, (districtid,), one=True)
 
 
 def create_pilot(name, school, code, start, end, districtid):

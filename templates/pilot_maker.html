@@ -15,8 +15,20 @@
     <label>School
       <input type="text" name="school" value="{{ values.school }}" required />
     </label>
+    <label>Filter districts
+      <input type="search" id="district-filter" placeholder="Type a district, city, or state" autocomplete="off" />
+    </label>
     <label>District
-      <input type="text" name="district" value="{{ values.district }}" required />
+      <select name="districtid" id="districtid" required>
+        <option value="">Select a district</option>
+        {% for d in districts %}
+          <option value="{{ d.districtid }}"
+            data-search="{{ d.name }} {{ d.city }} {{ d.state }}"
+            {% if values.districtid == d.districtid|string %}selected{% endif %}>
+            {{ d.name }} — {{ d.city }}, {{ d.state }}
+          </option>
+        {% endfor %}
+      </select>
     </label>
     <label>Code
       <input type="text" name="code" value="{{ values.code }}" required />
@@ -29,4 +41,21 @@
     </label>
     <button type="submit">{% if pilotid %}Save changes{% else %}Create pilot{% endif %}</button>
   </form>
+{% endblock %}
+{% block extra_js %}
+<script>
+  (function () {
+    const filter = document.getElementById("district-filter");
+    const select = document.getElementById("districtid");
+    if (!filter || !select) return;
+    const options = Array.from(select.querySelectorAll("option[data-search]"));
+    filter.addEventListener("input", function () {
+      const q = filter.value.trim().toLowerCase();
+      options.forEach(function (option) {
+        const match = !q || option.dataset.search.toLowerCase().includes(q);
+        option.hidden = !match;
+      });
+    });
+  })();
+</script>
 {% endblock %}
