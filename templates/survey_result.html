@@ -8,11 +8,11 @@
     <h1>{{ survey.title }}</h1>
     <p class="lede">{{ survey.round }} · {{ survey.pilot_name }} · {{ survey.respondents }} respondents</p>
     <p id="status" class="status">Loading…</p>
-    <div id="result-charts"></div>
     <section class="panel">
-      <h2>Text answers</h2>
-      <div id="text-answers"></div>
+      <h2>Responses</h2>
+      <div id="answer-details"></div>
     </section>
+    <div id="result-charts"></div>
   {% endif %}
 {% endblock %}
 {% block extra_js %}

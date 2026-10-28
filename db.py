@@ -325,11 +325,61 @@ def survey_results(surveyid):
     return _query(sql, (surveyid,))
 
 
+def _teacher_school_level_join():
+    return """
+        LEFT JOIN (
+          SELECT c.teacherid,
+            SUM(CASE WHEN s.`grade-level` BETWEEN 0 AND 5 THEN 1 ELSE 0 END) AS lower_ct,
+            SUM(CASE WHEN s.`grade-level` BETWEEN 6 AND 8 THEN 1 ELSE 0 END) AS middle_ct,
+            SUM(CASE WHEN s.`grade-level` BETWEEN 9 AND 12 THEN 1 ELSE 0 END) AS high_ct
+          FROM class c
+          JOIN Students s ON s.classid = c.classid
+          GROUP BY c.teacherid
+        ) AS levels ON levels.teacherid = t.teacherid
+    """
+
+
+def _school_level_case():
+    return """
+        CASE
+          WHEN COALESCE(levels.lower_ct, 0) = 0
+           AND COALESCE(levels.middle_ct, 0) = 0
+           AND COALESCE(levels.high_ct, 0) = 0 THEN '—'
+          WHEN levels.lower_ct > levels.middle_ct AND levels.lower_ct > levels.high_ct THEN 'Lower School'
+          WHEN levels.middle_ct > levels.lower_ct AND levels.middle_ct > levels.high_ct THEN 'Middle School'
+          WHEN levels.high_ct > levels.lower_ct AND levels.high_ct > levels.middle_ct THEN 'High School'
+          ELSE 'Mixed'
+        END
+    """
+
+
 def text_answers(surveyid):
-    sql = """
-        SELECT q.content AS question, a.content AS answer, a.answertime
-        FROM Question q JOIN Answer a ON a.questionid = q.questionid
+    sql = f"""
+        SELECT q.questionid, q.content AS question, q.questionType,
+               a.content AS answer, a.answertime,
+               t.fname, t.lname, t.school, t.district,
+               {_school_level_case()} AS school_level
+        FROM Question q
+        JOIN Answer a ON a.questionid = q.questionid
+        JOIN Teachers t ON t.teacherid = a.teacherid
+        {_teacher_school_level_join()}
         WHERE q.surveyid = %s AND q.questionType = 'text'
+        ORDER BY q.questionid, a.answertime
+    """
+    return _query(sql, (surveyid,))
+
+
+def survey_answer_details(surveyid):
+    sql = f"""
+        SELECT q.questionid, q.content AS question, q.questionType,
+               a.content AS answer, a.answertime,
+               t.fname, t.lname, t.school, t.district,
+               {_school_level_case()} AS school_level
+        FROM Question q
+        JOIN Answer a ON a.questionid = q.questionid
+        JOIN Teachers t ON t.teacherid = a.teacherid
+        {_teacher_school_level_join()}
+        WHERE q.surveyid = %s
         ORDER BY q.questionid, a.answertime
     """
     return _query(sql, (surveyid,))

@@ -340,9 +340,54 @@ const Granted = (() => {
       .replace(/"/g, "&quot;");
   }
 
+  function teacherName(row) {
+    const name = [row.fname, row.lname].filter(Boolean).join(" ").trim();
+    return name || "—";
+  }
+
+  function answerRowsTable(rows) {
+    if (!rows.length) return '<p class="empty">No data yet</p>';
+    return '<div class="table-wrap"><table><thead><tr>'
+      + "<th>When</th><th>Teacher</th><th>School</th><th>District</th><th>School level</th><th>Answer</th>"
+      + "</tr></thead><tbody>"
+      + rows.map((row) => (
+        `<tr>`
+        + `<td>${row.answertime || "—"}</td>`
+        + `<td>${escapeHtml(teacherName(row))}</td>`
+        + `<td>${escapeHtml(row.school || "—")}</td>`
+        + `<td>${escapeHtml(row.district || "—")}</td>`
+        + `<td>${escapeHtml(row.school_level || "—")}</td>`
+        + `<td>${escapeHtml(row.answer || "")}</td>`
+        + `</tr>`
+      )).join("")
+      + "</tbody></table></div>";
+  }
+
   function surveyDetailPage(url) {
     load(url, (data) => {
+      const details = data.answer_details || data.text_answers || [];
+      const box = document.getElementById("answer-details");
+      if (box) {
+        if (!details.length) {
+          box.innerHTML = '<p class="empty">No data yet</p>';
+        } else {
+          const byQuestion = {};
+          details.forEach((row) => {
+            const key = row.questionid || row.question;
+            if (!byQuestion[key]) {
+              byQuestion[key] = { question: row.question, rows: [] };
+            }
+            byQuestion[key].rows.push(row);
+          });
+          box.innerHTML = Object.keys(byQuestion).map((key) => (
+            `<h3>${escapeHtml(byQuestion[key].question)}</h3>`
+            + answerRowsTable(byQuestion[key].rows)
+          )).join("");
+        }
+      }
+
       const wrap = document.getElementById("result-charts");
+      if (!wrap) return;
       const grouped = {};
       (data.results || []).forEach((row) => {
         if (!grouped[row.questionid]) {
@@ -353,36 +398,20 @@ const Granted = (() => {
       });
       const ids = Object.keys(grouped);
       if (!ids.length) {
-        wrap.innerHTML = '<section class="panel"><p class="empty">No data yet</p></section>';
-      } else {
-        wrap.innerHTML = ids.map((id) => (
-          `<section class="panel"><h2>${escapeHtml(grouped[id].question)}</h2>`
-          + `<div class="chart-wrap"><canvas id="q-${id}"></canvas><p class="empty" hidden>No data yet</p></div></section>`
-        )).join("");
-        ids.forEach((id) => {
-          barChart(`q-${id}`, grouped[id].labels, {
-            label: "Responses",
-            data: grouped[id].values,
-            backgroundColor: colors.blue,
-          });
-        });
-      }
-      const texts = data.text_answers || [];
-      const box = document.getElementById("text-answers");
-      if (!texts.length) {
-        box.innerHTML = '<p class="empty">No data yet</p>';
+        wrap.innerHTML = "";
         return;
       }
-      const byQuestion = {};
-      texts.forEach((row) => {
-        if (!byQuestion[row.question]) byQuestion[row.question] = [];
-        byQuestion[row.question].push(row);
-      });
-      box.innerHTML = Object.keys(byQuestion).map((question) => (
-        `<h3>${escapeHtml(question)}</h3><div class="table-wrap"><table><thead><tr><th>When</th><th>Answer</th></tr></thead><tbody>`
-        + byQuestion[question].map((row) => `<tr><td>${row.answertime || "—"}</td><td>${escapeHtml(row.answer || "")}</td></tr>`).join("")
-        + "</tbody></table></div>"
+      wrap.innerHTML = ids.map((id) => (
+        `<section class="panel"><h2>${escapeHtml(grouped[id].question)}</h2>`
+        + `<div class="chart-wrap"><canvas id="q-${id}"></canvas><p class="empty" hidden>No data yet</p></div></section>`
       )).join("");
+      ids.forEach((id) => {
+        barChart(`q-${id}`, grouped[id].labels, {
+          label: "Responses",
+          data: grouped[id].values,
+          backgroundColor: colors.blue,
+        });
+      });
     });
   }
 

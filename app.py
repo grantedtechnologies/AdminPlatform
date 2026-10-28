@@ -473,6 +473,7 @@ def api_survey_result(surveyid):
     return {
         "results": db.survey_results(surveyid),
         "text_answers": db.text_answers(surveyid),
+        "answer_details": db.survey_answer_details(surveyid),
     }
 
 
