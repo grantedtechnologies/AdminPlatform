@@ -13,6 +13,17 @@
 <body>
   <header class="topbar">
     <a class="brand" href="{{ url_for('home') }}">Granted <span>Admin</span></a>
+    <form class="db-switch" method="post" action="{{ url_for('switch_db_target') }}" title="{{ db_label }}">
+      <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}" />
+      <label class="db-switch-label">Database</label>
+      <select name="target" onchange="this.form.submit()" aria-label="Database target">
+        <option value="default" {% if db_target == 'default' %}selected{% endif %}>This environment</option>
+        <option value="staging" {% if db_target == 'staging' %}selected{% endif %} {% if not staging_configured %}disabled{% endif %}>
+          Staging{% if not staging_configured %} (not configured){% endif %}
+        </option>
+      </select>
+      <span class="db-badge {{ db_target }}">{{ db_target_label }}</span>
+    </form>
     <button class="nav-toggle" type="button" aria-label="Menu">Menu</button>
     <nav id="site-nav">
       <a href="{{ url_for('home') }}" class="{% if section == 'home' %}active{% endif %}">Home</a>

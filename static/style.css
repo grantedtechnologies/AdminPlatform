@@ -49,6 +49,52 @@ a:hover { text-decoration: underline; }
 .brand span { color: var(--green); }
 .brand:hover { text-decoration: none; }
 
+.db-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.db-switch-label {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.db-switch select {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--white);
+  padding: 6px 10px;
+  color: var(--ink);
+}
+.db-badge {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.db-badge.staging {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #c2410c;
+}
+.db-badge.default {
+  background: var(--green-light);
+  border-color: #b7e2b4;
+  color: var(--green);
+}
+
 .nav-toggle {
   display: none;
   margin-left: auto;
@@ -213,6 +259,23 @@ button.ghost {
   color: var(--ink);
   border: 1px solid var(--border);
 }
+button.danger {
+  background: var(--red);
+  color: var(--white);
+}
+button.danger:hover { filter: brightness(0.95); }
+.danger-panel {
+  border-color: #fecaca;
+  background: var(--red-bg);
+}
+.danger-panel h2 { color: var(--red); }
+.danger-link { color: var(--red) !important; }
+.row-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  white-space: nowrap;
+}
 .pager {
   display: flex;
   gap: 12px;
@@ -324,7 +387,38 @@ tr.failed { background: var(--red-bg); }
 .badge.upcoming { background: #dbeafe; color: var(--blue); }
 .badge.ended { background: var(--bg); color: var(--muted); }
 
-.stack { display: grid; gap: 14px; max-width: 560px; }
+.muted { color: var(--muted); font-size: 12px; }
+button.linkish {
+  background: none;
+  border: none;
+  color: var(--green);
+  font-family: var(--font);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.stack {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  max-width: 560px;
+  box-sizing: border-box;
+}
+.stack label { min-width: 0; }
+.stack input,
+.stack select,
+.stack textarea,
+.stack > button {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.stack select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .question-row {
   display: grid;
   grid-template-columns: 1fr 140px auto;

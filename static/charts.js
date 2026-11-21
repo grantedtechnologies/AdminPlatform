@@ -293,8 +293,8 @@ const Granted = (() => {
         height: "auto",
         events: pilots.map((pilot) => ({
           title: pilot.name,
-          start: isoDay(pilot.startTime),
-          end: addDay(isoDay(pilot.endTime), 1),
+          start: pilot.startDay || isoDay(pilot.startTime),
+          end: addDay(pilot.endDay || isoDay(pilot.endTime), 1),
           allDay: true,
           color: statusColor[pilot.status] || colors.gray,
         })),

@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS Question;
 DROP TABLE IF EXISTS Events;
 DROP TABLE IF EXISTS Survey;
 DROP TABLE IF EXISTS Pilot;
+DROP TABLE IF EXISTS districts;
 DROP TABLE IF EXISTS vocabList;
 DROP TABLE IF EXISTS vocab_lists;
 DROP TABLE IF EXISTS Students;
@@ -37,18 +38,35 @@ CREATE TABLE `Teachers`(
 );
 ALTER TABLE
     `Teachers` ADD UNIQUE `teachers_email_unique`(`email`);
+CREATE TABLE `districts`(
+    `districtid` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `country` VARCHAR(80) NOT NULL,
+    `state` VARCHAR(80) NOT NULL,
+    `stateCode` CHAR(2) NULL,
+    `city` VARCHAR(80) NOT NULL,
+    `name` VARCHAR(120) NOT NULL,
+    `latitude` DECIMAL(9, 6) NULL,
+    `longitude` DECIMAL(9, 6) NULL
+);
+CREATE INDEX `districts_place_index` ON `districts` (`country`, `state`, `city`);
+CREATE INDEX `districts_state_code_index` ON `districts` (`stateCode`, `city`);
 CREATE TABLE `Pilot`(
     `pilotid` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `name` VARCHAR(255) NOT NULL, 
+    `districtid` BIGINT UNSIGNED NOT NULL,
+    `name` VARCHAR(255) NOT NULL,
     `school` VARCHAR(255) NOT NULL,
     `code` VARCHAR(255) NOT NULL,
     `startTime` DATETIME NOT NULL,
     `endTime` DATETIME NOT NULL,
     `createdAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `stripeCouponId` VARCHAR(255) NULL,
+    `stripePromotionCodeId` VARCHAR(255) NULL,
     CONSTRAINT `pilot_window_check` CHECK (`endTime` > `startTime`)
 );
 ALTER TABLE
     `Pilot` ADD UNIQUE `pilot_code_unique`(`code`);
+ALTER TABLE
+    `Pilot` ADD CONSTRAINT `pilot_districtid_foreign` FOREIGN KEY(`districtid`) REFERENCES `districts`(`districtid`);
 CREATE TABLE `class`(
     `classid` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `teacherid` BIGINT UNSIGNED NOT NULL,

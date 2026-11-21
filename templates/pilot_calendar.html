@@ -2,7 +2,7 @@
 {% block title %}Pilot Calendar — Granted Admin{% endblock %}
 {% block content %}
   <h1>Pilot · Calendar</h1>
-  <p class="lede">Each bar is a pilot window. Color is upcoming, active, or ended.</p>
+  <p class="lede">Each bar is a pilot window ({{ tz_label }}). Color is upcoming, active, or ended.</p>
   <p id="status" class="status">Loading…</p>
   <section class="panel">
     <div id="calendar"></div>
@@ -17,11 +17,12 @@
               <th>Name</th>
               <th>School</th>
               <th>Code</th>
-              <th>Start</th>
-              <th>End</th>
+              <th>Start ({{ tz_label }})</th>
+              <th>End ({{ tz_label }})</th>
               <th>Status</th>
               <th>Teachers</th>
-              <th></th>
+              <th>Stripe</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -30,11 +31,30 @@
                 <td>{{ p.name }}</td>
                 <td>{{ p.school }}</td>
                 <td>{{ p.code }}</td>
-                <td>{{ p.startTime }}</td>
-                <td>{{ p.endTime }}</td>
+                <td>{{ p.startDisplay }}</td>
+                <td>{{ p.endDisplay }}</td>
                 <td><span class="badge {{ p.status }}">{{ p.status }}</span></td>
                 <td>{{ p.teachers }}</td>
-                <td><a href="{{ url_for('pilot_maker', pilotid=p.pilotid) }}">Edit</a></td>
+                <td>
+                  {% if p.stripe.state == 'synced' %}
+                    <span class="badge active">Synced</span>
+                  {% elif p.stripe.state == 'missing' %}
+                    <span class="badge ended">Missing</span>
+                    <form method="post" action="{{ url_for('pilot_stripe_retry', pilotid=p.pilotid) }}" style="display:inline">
+                      <input type="hidden" name="next" value="{{ url_for('pilot_calendar') }}" />
+                      <button type="submit" class="linkish">Retry</button>
+                    </form>
+                  {% else %}
+                    <span class="badge upcoming">Not configured</span>
+                  {% endif %}
+                </td>
+                <td class="row-actions">
+                  <a href="{{ url_for('pilot_maker', pilotid=p.pilotid) }}">Edit</a>
+                  <form method="post" action="{{ url_for('pilot_delete', pilotid=p.pilotid) }}" style="display:inline"
+                        onsubmit="return confirm('Delete pilot {{ p.name|e }}? Teachers on it lose pilot access.');">
+                    <button type="submit" class="linkish danger-link">Delete</button>
+                  </form>
+                </td>
               </tr>
             {% endfor %}
           </tbody>

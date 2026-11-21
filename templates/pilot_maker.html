@@ -8,6 +8,22 @@
       {% for error in errors %}<li>{{ error }}</li>{% endfor %}
     </ul>
   {% endif %}
+  {% if pilotid and stripe %}
+    <section class="panel stack" style="margin-bottom: 16px;">
+      <h2>Stripe code</h2>
+      {% if stripe.state == 'synced' %}
+        <p><span class="badge active">Synced</span> {{ stripe.detail }}</p>
+      {% elif stripe.state == 'missing' %}
+        <p><span class="badge ended">Missing</span> {{ stripe.detail }}</p>
+        <form method="post" action="{{ url_for('pilot_stripe_retry', pilotid=pilotid) }}">
+          <input type="hidden" name="next" value="{{ url_for('pilot_maker', pilotid=pilotid) }}" />
+          <button type="submit">Retry</button>
+        </form>
+      {% else %}
+        <p><span class="badge upcoming">Not configured</span> {{ stripe.detail }}</p>
+      {% endif %}
+    </section>
+  {% endif %}
   <form class="stack panel" method="post">
     <label>Name
       <input type="text" name="name" value="{{ values.name }}" required />
@@ -31,16 +47,25 @@
       </select>
     </label>
     <label>Code
-      <input type="text" name="code" value="{{ values.code }}" required />
+      <input type="text" name="code" value="{{ values.code }}" required maxlength="50"
+             pattern="[A-Za-z0-9-]+" title="Letters, digits, and dashes only" />
     </label>
-    <label>Start
+    <label>Start ({{ tz_label }})
       <input type="datetime-local" name="start" value="{{ values.start }}" required />
     </label>
-    <label>End
+    <label>End ({{ tz_label }})
       <input type="datetime-local" name="end" value="{{ values.end }}" required />
     </label>
     <button type="submit">{% if pilotid %}Save changes{% else %}Create pilot{% endif %}</button>
   </form>
+  {% if pilotid %}
+    <form class="stack panel danger-panel" method="post" action="{{ url_for('pilot_delete', pilotid=pilotid) }}"
+          onsubmit="return confirm('Delete this pilot? Teachers on it lose pilot access. This cannot be undone.');">
+      <h2>Delete pilot</h2>
+      <p class="lede" style="margin:0">Removes the pilot and teacher pilot subscriptions. Surveys keep their answers; the pilot link is cleared. Stripe promotion codes are deactivated when configured.</p>
+      <button type="submit" class="danger">Delete pilot</button>
+    </form>
+  {% endif %}
 {% endblock %}
 {% block extra_js %}
 <script>

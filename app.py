@@ -10,7 +10,9 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 from flask.json.provider import DefaultJSONProvider
 import pymysql
 
+import admin_time
 import db
+import stripe_pilots
 import tests
 
 load_dotenv()
@@ -33,6 +35,26 @@ app.json_provider_class = AdminJSONProvider
 app.json = AdminJSONProvider(app)
 
 DUPLICATE_CODE = 1062
+SESSION_DB_TARGET = "db_target"
+
+
+@app.before_request
+def _bind_db_target():
+    # Every request (and thus every db.get_conn) uses the session's target.
+    # Outside a request, db defaults to DB_* for this deploy.
+    chosen = session.get(SESSION_DB_TARGET) if session.get("admin") else db.TARGET_DEFAULT
+    db.set_active_target(chosen)
+
+
+@app.context_processor
+def inject_db_target():
+    cfg = db.db_settings()
+    return {
+        "db_target": cfg["target"],
+        "db_target_label": cfg["label"],
+        "db_label": f"{cfg['label']} · {cfg.get('database') or '?'}@{cfg.get('host') or '?'}",
+        "staging_configured": db.staging_configured(),
+    }
 
 
 def admin_required(view):
@@ -63,9 +85,35 @@ def _parse_pilotid(required=False):
 
 
 def _dt_local(value):
-    if not value:
-        return ""
-    return value.strftime("%Y-%m-%dT%H:%M")
+    return admin_time.utc_naive_to_local_form(value)
+
+
+def _decorate_pilot(pilot):
+    if not pilot:
+        return pilot
+    row = dict(pilot)
+    row["startDisplay"] = admin_time.utc_naive_to_display(row.get("startTime"))
+    row["endDisplay"] = admin_time.utc_naive_to_display(row.get("endTime"))
+    row["startDay"] = admin_time.utc_naive_to_local_form(row.get("startTime"))[:10]
+    row["endDay"] = admin_time.utc_naive_to_local_form(row.get("endTime"))[:10]
+    row["stripe"] = stripe_pilots.stripe_ui_state(row)
+    return row
+
+
+def _flash_stripe_result(result, *, created=False):
+    mode = ""
+    if result.livemode is True:
+        mode = " (live)"
+    elif result.livemode is False:
+        mode = " (test)"
+    if not result.configured:
+        verb = "created" if created else "updated"
+        flash(f"Pilot {verb}. Stripe code NOT created: Stripe is not configured.", "error")
+        return
+    if result.ok:
+        flash(result.message or f"Stripe code synced{mode}.", "success")
+        return
+    flash(f"Stripe code NOT created: {result.message}", "error")
 
 
 def _features_payload(pilotid=None):
@@ -127,19 +175,23 @@ def _validate_pilot(values):
             int(values["districtid"])
         except (TypeError, ValueError):
             errors.append("Choose a valid district.")
-    if not values["code"]:
-        errors.append("Code is required.")
+    code_err = stripe_pilots.validate_code_format(values.get("code") or "")
+    if code_err:
+        errors.append(code_err)
     if not values["start"] or not values["end"]:
         errors.append("Start and end dates are required.")
         return errors
     try:
-        start = datetime.fromisoformat(values["start"])
-        end = datetime.fromisoformat(values["end"])
-    except ValueError:
-        errors.append("Start and end must be valid dates.")
+        start = admin_time.local_form_to_utc_naive(values["start"])
+        end = admin_time.local_form_to_utc_naive(values["end"])
+    except admin_time.InvalidLocalTime as exc:
+        errors.append(str(exc))
         return errors
     if end <= start:
         errors.append("End date must be after the start date.")
+    else:
+        values["start_utc"] = start
+        values["end_utc"] = end
     return errors
 
 
@@ -171,6 +223,23 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/db-target", methods=["POST"])
+@admin_required
+def switch_db_target():
+    """Flip all admin reads/writes between this deploy's DB_* and staging."""
+    wanted = (request.form.get("target") or db.TARGET_DEFAULT).strip().lower()
+    if wanted == db.TARGET_STAGING and not db.staging_configured():
+        flash("Staging database is not configured (set STAGING_HOST / USER / DATABASE).", "error")
+        return redirect(_safe_next(request.form.get("next") or request.referrer))
+    if wanted not in (db.TARGET_DEFAULT, db.TARGET_STAGING):
+        wanted = db.TARGET_DEFAULT
+    session[SESSION_DB_TARGET] = wanted
+    db.set_active_target(wanted)
+    cfg = db.db_settings()
+    flash(f"Now using {cfg['label']} ({cfg['database']}@{cfg['host']}).", "success")
+    return redirect(_safe_next(request.form.get("next") or request.referrer))
 
 
 @app.route("/")
@@ -206,17 +275,20 @@ def api_analytics_usage():
 @app.route("/pilot/calendar")
 @admin_required
 def pilot_calendar():
+    pilots = [_decorate_pilot(p) for p in db.all_pilots()]
     return render_template(
         "pilot_calendar.html",
         section="pilot",
-        pilots=db.all_pilots(),
+        pilots=pilots,
+        tz_label=admin_time.timezone_label(),
     )
 
 
 @app.route("/api/pilot/calendar")
 @admin_required
 def api_pilot_calendar():
-    return {"pilots": db.all_pilots()}
+    pilots = [_decorate_pilot(p) for p in db.all_pilots()]
+    return {"pilots": pilots}
 
 
 @app.route("/pilot/maker", methods=["GET", "POST"])
@@ -236,6 +308,9 @@ def pilot_maker():
                 values=_pilot_form_values(),
                 districts=districts,
                 errors=["That pilot was not found."],
+                pilot=None,
+                stripe=stripe_pilots.stripe_ui_state(None),
+                tz_label=admin_time.timezone_label(),
             ), 404
         if not db.get_pilot(pilotid):
             return render_template(
@@ -245,10 +320,14 @@ def pilot_maker():
                 values=_pilot_form_values(),
                 districts=districts,
                 errors=["That pilot was not found."],
+                pilot=None,
+                stripe=stripe_pilots.stripe_ui_state(None),
+                tz_label=admin_time.timezone_label(),
             ), 404
 
     errors = []
-    values = _pilot_form_values(pilot=db.get_pilot(pilotid) if pilotid else None)
+    existing = db.get_pilot(pilotid) if pilotid else None
+    values = _pilot_form_values(pilot=existing)
 
     if request.method == "POST":
         values = _pilot_form_values(form=request.form)
@@ -260,27 +339,38 @@ def pilot_maker():
                 errors.append("Choose a valid district.")
         if not errors:
             try:
+                if stripe_pilots.code_taken_in_stripe(values["code"], pilotid=pilotid):
+                    errors.append("That code already exists in Stripe.")
+            except stripe_pilots.StripePilotsError as exc:
+                errors.append(exc.message)
+        if not errors:
+            try:
                 if pilotid:
+                    before = existing or db.get_pilot(pilotid)
                     db.update_pilot(
                         pilotid,
                         values["name"],
                         values["school"],
                         values["code"],
-                        values["start"],
-                        values["end"],
+                        values["start_utc"],
+                        values["end_utc"],
                         district["districtid"],
                     )
                     flash("Pilot updated.", "success")
+                    after = db.get_pilot(pilotid)
+                    _flash_stripe_result(stripe_pilots.sync_after_update(before, after))
                 else:
-                    db.create_pilot(
+                    new_id = db.create_pilot(
                         values["name"],
                         values["school"],
                         values["code"],
-                        values["start"],
-                        values["end"],
+                        values["start_utc"],
+                        values["end_utc"],
                         district["districtid"],
                     )
                     flash("Pilot created.", "success")
+                    pilot = db.get_pilot(new_id)
+                    _flash_stripe_result(stripe_pilots.sync_after_create(pilot), created=True)
                 return redirect(url_for("pilot_calendar"))
             except pymysql.err.IntegrityError as exc:
                 if exc.args and exc.args[0] == DUPLICATE_CODE:
@@ -290,6 +380,7 @@ def pilot_maker():
             except pymysql.err.OperationalError:
                 errors.append("Could not save this pilot.")
 
+    pilot = _decorate_pilot(db.get_pilot(pilotid)) if pilotid else None
     return render_template(
         "pilot_maker.html",
         section="pilot",
@@ -297,7 +388,56 @@ def pilot_maker():
         values=values,
         districts=districts,
         errors=errors,
+        pilot=pilot,
+        stripe=stripe_pilots.stripe_ui_state(pilot),
+        tz_label=admin_time.timezone_label(),
     )
+
+
+@app.route("/pilot/<int:pilotid>/stripe-retry", methods=["POST"])
+@admin_required
+def pilot_stripe_retry(pilotid):
+    pilot = db.get_pilot(pilotid)
+    if not pilot:
+        abort(404)
+    result = stripe_pilots.ensure_pilot_code(pilot)
+    if not result.configured:
+        flash("Stripe code NOT created: Stripe is not configured.", "error")
+    elif result.ok:
+        flash(result.message or "Stripe code synced.", "success")
+    else:
+        flash(f"Stripe code NOT created: {result.message}", "error")
+    nxt = request.form.get("next") or url_for("pilot_maker", pilotid=pilotid)
+    return redirect(_safe_next(nxt))
+
+
+@app.route("/pilot/<int:pilotid>/delete", methods=["POST"])
+@admin_required
+def pilot_delete(pilotid):
+    pilot = db.get_pilot(pilotid)
+    if not pilot:
+        abort(404)
+    name = pilot.get("name") or "Pilot"
+    # Best-effort Stripe retire; DB delete still proceeds if Stripe fails.
+    stripe_result = stripe_pilots.retire_pilot_code(pilot)
+    try:
+        deleted = db.delete_pilot(pilotid)
+    except pymysql.err.IntegrityError:
+        flash(
+            f"Could not delete “{name}” — it is still referenced by other records.",
+            "error",
+        )
+        return redirect(url_for("pilot_maker", pilotid=pilotid))
+    except pymysql.err.OperationalError:
+        flash(f"Could not delete “{name}”.", "error")
+        return redirect(url_for("pilot_maker", pilotid=pilotid))
+    if not deleted:
+        flash("That pilot was not found.", "error")
+        return redirect(url_for("pilot_calendar"))
+    flash(f"Deleted pilot “{name}”.", "success")
+    if stripe_result.configured and not stripe_result.ok:
+        flash(f"Stripe code may still be active: {stripe_result.message}", "error")
+    return redirect(url_for("pilot_calendar"))
 
 
 @app.route("/pilot/features")

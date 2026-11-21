@@ -1,4 +1,5 @@
 import os
+from contextvars import ContextVar
 
 import pymysql
 from dotenv import load_dotenv
@@ -6,17 +7,71 @@ from pymysql.cursors import DictCursor
 
 load_dotenv()
 
+# "default" = DB_* for this deploy (local MySQL locally, prod DB in prod).
+# "staging" = optional STAGING_* database for cross-environment admin work.
+TARGET_DEFAULT = "default"
+TARGET_STAGING = "staging"
+_active_target = ContextVar("db_active_target", default=TARGET_DEFAULT)
+
+
+def set_active_target(target):
+    """Pin this request/thread to default or staging. Invalid values → default."""
+    value = (target or TARGET_DEFAULT).strip().lower()
+    if value not in (TARGET_DEFAULT, TARGET_STAGING):
+        value = TARGET_DEFAULT
+    if value == TARGET_STAGING and not staging_configured():
+        value = TARGET_DEFAULT
+    _active_target.set(value)
+    return value
+
+
+def db_target():
+    return _active_target.get()
+
+
+def staging_configured():
+    host = (os.getenv("STAGING_HOST") or "").strip()
+    name = (os.getenv("STAGING_DATABASE") or "").strip()
+    user = (os.getenv("STAGING_USER") or "").strip()
+    return bool(host and name and user)
+
+
+def db_settings(target=None):
+    """Resolve host/user/password/database/port for a target."""
+    chosen = (target or db_target()).strip().lower()
+    if chosen == TARGET_STAGING and staging_configured():
+        return {
+            "target": TARGET_STAGING,
+            "label": "Staging",
+            "host": os.getenv("STAGING_HOST"),
+            "user": os.getenv("STAGING_USER"),
+            "password": os.getenv("STAGING_PASSWORD") or os.getenv("STAGING_ROOT_PASSWORD") or "",
+            "database": os.getenv("STAGING_DATABASE"),
+            "port": int(os.getenv("STAGING_PORT") or "3306"),
+        }
+    return {
+        "target": TARGET_DEFAULT,
+        "label": "This environment",
+        "host": os.getenv("DB_HOST", "localhost"),
+        "user": os.getenv("DB_USER"),
+        "password": os.getenv("DB_PASSWORD", ""),
+        "database": os.getenv("DB_NAME"),
+        "port": int(os.getenv("DB_PORT", "3306")),
+    }
+
 
 def get_conn():
+    cfg = db_settings()
     return pymysql.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD", ""),
-        database=os.getenv("DB_NAME"),
-        port=int(os.getenv("DB_PORT", "3306")),
+        host=cfg["host"],
+        user=cfg["user"],
+        password=cfg["password"],
+        database=cfg["database"],
+        port=cfg["port"],
         cursorclass=DictCursor,
         charset="utf8mb4",
         autocommit=False,
+        connect_timeout=15,
     )
 
 
@@ -185,8 +240,9 @@ def failure_summary():
 def all_pilots():
     sql = """
         SELECT p.pilotid, p.name, p.school, p.code, p.startTime, p.endTime,
-          CASE WHEN NOW() < p.startTime THEN 'upcoming'
-               WHEN NOW() > p.endTime THEN 'ended' ELSE 'active' END AS status,
+               p.stripeCouponId, p.stripePromotionCodeId,
+          CASE WHEN UTC_TIMESTAMP() < p.startTime THEN 'upcoming'
+               WHEN UTC_TIMESTAMP() > p.endTime THEN 'ended' ELSE 'active' END AS status,
           COUNT(s.teacherid) AS teachers
         FROM Pilot p LEFT JOIN subscriptions s ON s.pilotid = p.pilotid
         GROUP BY p.pilotid ORDER BY p.startTime
@@ -211,7 +267,7 @@ def get_district(districtid):
 def create_pilot(name, school, code, start, end, districtid):
     sql = """
         INSERT INTO Pilot (districtid, name, school, code, startTime, endTime, createdAt)
-        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        VALUES (%s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())
     """
     return _execute(sql, (districtid, name, school, code, start, end))
 
@@ -219,7 +275,8 @@ def create_pilot(name, school, code, start, end, districtid):
 def get_pilot(pilotid):
     sql = """
         SELECT p.pilotid, p.name, p.school, p.code, p.startTime, p.endTime,
-               p.districtid, d.name AS district
+               p.districtid, d.name AS district,
+               p.stripeCouponId, p.stripePromotionCodeId
         FROM Pilot p
         LEFT JOIN districts d ON d.districtid = p.districtid
         WHERE p.pilotid = %s
@@ -233,6 +290,39 @@ def update_pilot(pilotid, name, school, code, start, end, districtid):
         WHERE pilotid = %s
     """
     _execute(sql, (districtid, name, school, code, start, end, pilotid))
+
+
+def set_pilot_stripe_ids(pilotid, coupon_id, promotion_code_id):
+    sql = """
+        UPDATE Pilot
+        SET stripeCouponId = %s, stripePromotionCodeId = %s
+        WHERE pilotid = %s
+    """
+    _execute(sql, (coupon_id, promotion_code_id, pilotid))
+
+
+def delete_pilot(pilotid):
+    """Remove a pilot and its teacher pilot-subscriptions.
+
+    Survey/Events FKs use ON DELETE SET NULL when present. Stripe cleanup is
+    handled by the caller (best-effort deactivate).
+    """
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM subscriptions WHERE pilotid = %s",
+                (pilotid,),
+            )
+            cur.execute("DELETE FROM Pilot WHERE pilotid = %s", (pilotid,))
+            deleted = cur.rowcount
+        conn.commit()
+        return deleted > 0
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def pilot_teacher_types(pilotid=None):

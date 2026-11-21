@@ -4,3 +4,4 @@ python-dotenv
 cryptography
 requests
 gunicorn
+stripe==15.6.1
