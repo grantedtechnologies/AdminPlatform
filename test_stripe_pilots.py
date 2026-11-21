@@ -184,15 +184,44 @@ class StripeSyncTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertIn("No Stripe change", result.message)
 
+    @patch("stripe_pilots._deactivate_promo")
+    @patch("stripe_pilots.db.get_pilot")
     @patch("stripe_pilots.find_active_promotion_code")
-    def test_code_taken(self, find):
+    def test_code_taken(self, find, get_pilot, deactivate):
+        # Orphaned active promo (no live pilot) is deactivated and treated as free.
         find.return_value = {"id": "promo_x", "active": True, "metadata": {}}
+        get_pilot.return_value = None
         with patch("stripe_pilots.configured", return_value=True):
-            self.assertTrue(stripe_pilots.code_taken_in_stripe("TAKEN"))
-        find.return_value = {"id": "promo_x", "active": True, "metadata": {"pilotid": "5"}}
+            self.assertFalse(stripe_pilots.code_taken_in_stripe("ORPHAN"))
+        deactivate.assert_called_with("promo_x")
+
+        # Owned by this pilot → free for that pilot.
+        find.return_value = {"id": "promo_y", "active": True, "metadata": {"pilotid": "5"}}
+        get_pilot.return_value = {"pilotid": 5, "code": "OURS"}
         with patch("stripe_pilots.configured", return_value=True):
             self.assertFalse(stripe_pilots.code_taken_in_stripe("OURS", pilotid=5))
+
+        # Owned by another live pilot → taken.
+        with patch("stripe_pilots.configured", return_value=True):
             self.assertTrue(stripe_pilots.code_taken_in_stripe("OURS", pilotid=9))
+
+    @patch("stripe_pilots._deactivate_promo")
+    @patch("stripe_pilots.find_active_promotion_code")
+    def test_retire_also_clears_by_code(self, find, deactivate):
+        find.return_value = {"id": "promo_leftover", "active": True}
+        pilot = {
+            "pilotid": 1,
+            "code": "REUSEME",
+            "stripeCouponId": "cou_1",
+            "stripePromotionCodeId": "promo_stored",
+        }
+        with patch("stripe_pilots.configured", return_value=True):
+            result = stripe_pilots.retire_pilot_code(pilot)
+        self.assertTrue(result.ok)
+        self.assertEqual(
+            [c.args[0] for c in deactivate.call_args_list],
+            ["promo_stored", "promo_leftover"],
+        )
 
 
 class SecretLeakTests(unittest.TestCase):

@@ -62,7 +62,7 @@
     <form class="stack panel danger-panel" method="post" action="{{ url_for('pilot_delete', pilotid=pilotid) }}"
           onsubmit="return confirm('Delete this pilot? Teachers on it lose pilot access. This cannot be undone.');">
       <h2>Delete pilot</h2>
-      <p class="lede" style="margin:0">Removes the pilot and teacher pilot subscriptions. Surveys keep their answers; the pilot link is cleared. Stripe promotion codes are deactivated when configured.</p>
+      <p class="lede" style="margin:0">Removes the pilot and teacher pilot subscriptions. Surveys keep their answers; the pilot link is cleared. Stripe cannot delete promotion codes — they are turned off so the same code can be reused on a new pilot.</p>
       <button type="submit" class="danger">Delete pilot</button>
     </form>
   {% endif %}

@@ -171,23 +171,6 @@ def find_active_promotion_code(code: str) -> dict | None:
     return None
 
 
-def code_taken_in_stripe(code: str, pilotid: int | None = None) -> bool:
-    """True if an active Stripe promo uses this code and is not ours."""
-    if not configured():
-        return False
-    try:
-        found = find_active_promotion_code(code)
-    except stripe.StripeError as exc:
-        raise map_stripe_error(exc) from exc
-    if not found:
-        return False
-    meta = found.get("metadata") or {}
-    owner = str(meta.get("pilotid") or "")
-    if pilotid is not None and owner == str(pilotid):
-        return False
-    return True
-
-
 def _deactivate_promo(promo_id: str | None) -> None:
     if not promo_id:
         return
@@ -197,6 +180,46 @@ def _deactivate_promo(promo_id: str | None) -> None:
         log.info("Could not deactivate promotion code %s (already gone?)", promo_id)
     except stripe.StripeError as exc:
         raise map_stripe_error(exc) from exc
+
+
+def release_orphaned_code(code: str, pilotid: int | None = None) -> None:
+    """Free a code left active after a pilot was deleted.
+
+    Stripe promotion codes cannot be deleted — only deactivated. An active
+    leftover blocks creating the same code string again. If another live pilot
+    still owns the code, raise code_exists.
+    """
+    found = find_active_promotion_code(code)
+    if not found:
+        return
+    meta = found.get("metadata") or {}
+    owner = str(meta.get("pilotid") or "")
+    if pilotid is not None and owner == str(pilotid):
+        return
+    if owner.isdigit():
+        other = db.get_pilot(int(owner))
+        if other is not None and (pilotid is None or int(other["pilotid"]) != int(pilotid)):
+            raise StripePilotsError("That code already exists in Stripe.", "code_exists")
+    # Orphaned (pilot gone) or no metadata — deactivate so the code can be reused.
+    _deactivate_promo(found.get("id"))
+
+
+def code_taken_in_stripe(code: str, pilotid: int | None = None) -> bool:
+    """True if another live pilot owns an active Stripe promo with this code.
+
+    Orphaned active promos from deleted pilots are deactivated and treated as free.
+    """
+    if not configured():
+        return False
+    try:
+        release_orphaned_code(code, pilotid=pilotid)
+    except StripePilotsError as exc:
+        if exc.reason == "code_exists":
+            return True
+        raise
+    except stripe.StripeError as exc:
+        raise map_stripe_error(exc) from exc
+    return False
 
 
 def _coupon_redeem_by(coupon_id: str) -> int | None:
@@ -233,7 +256,7 @@ def _create_coupon(pilot: dict, end_ts: int) -> Any:
         raise map_stripe_error(exc) from exc
 
 
-def _create_promo(pilot: dict, coupon_id: str, end_ts: int) -> Any:
+def _create_promo(pilot: dict, coupon_id: str, end_ts: int, *, attempt: int = 1) -> Any:
     pilotid = pilot["pilotid"]
     code = pilot["code"]
     params = {
@@ -242,10 +265,11 @@ def _create_promo(pilot: dict, coupon_id: str, end_ts: int) -> Any:
         "expires_at": end_ts,
         "metadata": {"pilotid": str(pilotid)},
     }
+    # attempt suffix avoids Stripe replaying a cached failure after we free an orphan.
     try:
         return client().v1.promotion_codes.create(
             params=params,
-            options={"idempotency_key": f"pilot-{pilotid}-promo-{code}-{end_ts}"},
+            options={"idempotency_key": f"pilot-{pilotid}-promo-{code}-{end_ts}-a{attempt}"},
         )
     except stripe.StripeError as exc:
         raise map_stripe_error(exc) from exc
@@ -306,7 +330,16 @@ def ensure_pilot_code(pilot: dict) -> StripeSyncResult:
                 promotion_code_id=promo_id,
             )
 
-        promo = _create_promo(pilot, coupon_id, end_ts)
+        # Free leftovers from a prior delete so the same code string can be recreated.
+        release_orphaned_code(pilot["code"], pilotid=pilot["pilotid"])
+        try:
+            promo = _create_promo(pilot, coupon_id, end_ts, attempt=1)
+        except StripePilotsError as exc:
+            if exc.reason != "code_exists":
+                raise
+            # Race / missed orphan: deactivate again and retry once.
+            release_orphaned_code(pilot["code"], pilotid=pilot["pilotid"])
+            promo = _create_promo(pilot, coupon_id, end_ts, attempt=2)
         promo_id = promo.id
         livemode = bool(promo.livemode)
         db.set_pilot_stripe_ids(pilot["pilotid"], coupon_id, promo_id)
@@ -327,7 +360,7 @@ def ensure_pilot_code(pilot: dict) -> StripeSyncResult:
 
 
 def retire_pilot_code(pilot: dict) -> StripeSyncResult:
-    """Deactivate the pilot's Stripe promotion code. Does not delete coupons."""
+    """Deactivate the pilot's Stripe promotion code (Stripe cannot delete them)."""
     if not configured():
         msg = (
             "Staging Stripe is not configured (set STAGING_STRIPE_SECRET_KEY)."
@@ -336,19 +369,19 @@ def retire_pilot_code(pilot: dict) -> StripeSyncResult:
         )
         return StripeSyncResult(ok=False, configured=False, message=msg)
     promo_id = pilot.get("stripePromotionCodeId")
-    if not promo_id:
-        return StripeSyncResult(
-            ok=True,
-            configured=True,
-            message="No Stripe promotion code to retire.",
-            coupon_id=pilot.get("stripeCouponId"),
-        )
+    code = pilot.get("code") or ""
     try:
-        _deactivate_promo(promo_id)
+        if promo_id:
+            _deactivate_promo(promo_id)
+        # Also clear any still-active promo with this code string (missing id, etc.).
+        if code:
+            leftover = find_active_promotion_code(code)
+            if leftover:
+                _deactivate_promo(leftover.get("id"))
         return StripeSyncResult(
             ok=True,
             configured=True,
-            message="Stripe promotion code deactivated.",
+            message="Stripe promotion code deactivated (Stripe does not allow deleting codes).",
             coupon_id=pilot.get("stripeCouponId"),
             promotion_code_id=promo_id,
         )
