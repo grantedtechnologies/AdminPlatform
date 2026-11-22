@@ -17,11 +17,11 @@ DROP TABLE IF EXISTS Question;
 DROP TABLE IF EXISTS Events;
 DROP TABLE IF EXISTS Survey;
 DROP TABLE IF EXISTS Pilot;
-DROP TABLE IF EXISTS districts;
 DROP TABLE IF EXISTS vocabList;
 DROP TABLE IF EXISTS vocab_lists;
 DROP TABLE IF EXISTS Students;
 DROP TABLE IF EXISTS class;
+DROP TABLE IF EXISTS districts;
 DROP TABLE IF EXISTS Teachers;
 
 CREATE TABLE `Teachers`(
@@ -32,8 +32,10 @@ CREATE TABLE `Teachers`(
     `password` VARCHAR(255) NOT NULL,
     `verified` BOOLEAN NOT NULL,
     `createdAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    'state' VARCHAR(255) NOT NULL,
-    `district` VARCHAR(255) NOT NULL,
+    `country` VARCHAR(255) NOT NULL,
+    `state` VARCHAR(255) NOT NULL,
+    `city` VARCHAR(255) NOT NULL,
+    `district` VARCHAR(255) NULL,
     `school` VARCHAR(255) NOT NULL
 );
 ALTER TABLE
@@ -52,9 +54,10 @@ CREATE INDEX `districts_place_index` ON `districts` (`country`, `state`, `city`)
 CREATE INDEX `districts_state_code_index` ON `districts` (`stateCode`, `city`);
 CREATE TABLE `Pilot`(
     `pilotid` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `districtid` BIGINT UNSIGNED NOT NULL,
+    `country` VARCHAR(80) NOT NULL,
+    `state` VARCHAR(80) NOT NULL,
+    `stateCode` CHAR(2) NULL,
     `name` VARCHAR(255) NOT NULL,
-    `school` VARCHAR(255) NOT NULL,
     `code` VARCHAR(255) NOT NULL,
     `startTime` DATETIME NOT NULL,
     `endTime` DATETIME NOT NULL,
@@ -65,8 +68,7 @@ CREATE TABLE `Pilot`(
 );
 ALTER TABLE
     `Pilot` ADD UNIQUE `pilot_code_unique`(`code`);
-ALTER TABLE
-    `Pilot` ADD CONSTRAINT `pilot_districtid_foreign` FOREIGN KEY(`districtid`) REFERENCES `districts`(`districtid`);
+CREATE INDEX `pilot_state_index` ON `Pilot` (`country`, `state`);
 CREATE TABLE `class`(
     `classid` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `teacherid` BIGINT UNSIGNED NOT NULL,
@@ -204,6 +206,12 @@ CREATE TABLE `sessions`(
 );
 ALTER TABLE
     `sessions` ADD INDEX `sessions_teacherid_startedat_index`(`teacherid`, `startedAt`);
+CREATE TABLE `processed_webhook_events`(
+    `eventId` VARCHAR(255) NOT NULL,
+    `eventType` VARCHAR(255) NOT NULL,
+    `processedAt` DATETIME NOT NULL,
+    PRIMARY KEY(`eventId`)
+);
 CREATE TABLE `Events`(
     `eventid` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `eventType` VARCHAR(255) NOT NULL,
@@ -275,6 +283,8 @@ ALTER TABLE
     `worksheets` ADD CONSTRAINT `worksheets_studentid_foreign` FOREIGN KEY(`studentid`) REFERENCES `Students`(`studentid`);
 ALTER TABLE
     `Answer` ADD CONSTRAINT `answer_questionid_foreign` FOREIGN KEY(`questionid`) REFERENCES `Question`(`questionid`);
+ALTER TABLE
+    `Answer` ADD UNIQUE `answer_teacherid_questionid_unique`(`teacherid`, `questionid`);
 ALTER TABLE
     `subscriptions` ADD CONSTRAINT `subscriptions_teacherid_foreign` FOREIGN KEY(`teacherid`) REFERENCES `Teachers`(`teacherid`);
 ALTER TABLE

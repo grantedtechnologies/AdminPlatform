@@ -37,6 +37,24 @@ app.json = AdminJSONProvider(app)
 DUPLICATE_CODE = 1062
 SESSION_DB_TARGET = "db_target"
 
+# Pilot place is country + state (not school / district / city).
+US_STATES = [
+    ("AL", "Alabama"), ("AK", "Alaska"), ("AZ", "Arizona"), ("AR", "Arkansas"),
+    ("CA", "California"), ("CO", "Colorado"), ("CT", "Connecticut"), ("DE", "Delaware"),
+    ("DC", "District of Columbia"), ("FL", "Florida"), ("GA", "Georgia"), ("HI", "Hawaii"),
+    ("ID", "Idaho"), ("IL", "Illinois"), ("IN", "Indiana"), ("IA", "Iowa"),
+    ("KS", "Kansas"), ("KY", "Kentucky"), ("LA", "Louisiana"), ("ME", "Maine"),
+    ("MD", "Maryland"), ("MA", "Massachusetts"), ("MI", "Michigan"), ("MN", "Minnesota"),
+    ("MS", "Mississippi"), ("MO", "Missouri"), ("MT", "Montana"), ("NE", "Nebraska"),
+    ("NV", "Nevada"), ("NH", "New Hampshire"), ("NJ", "New Jersey"), ("NM", "New Mexico"),
+    ("NY", "New York"), ("NC", "North Carolina"), ("ND", "North Dakota"), ("OH", "Ohio"),
+    ("OK", "Oklahoma"), ("OR", "Oregon"), ("PA", "Pennsylvania"), ("RI", "Rhode Island"),
+    ("SC", "South Carolina"), ("SD", "South Dakota"), ("TN", "Tennessee"), ("TX", "Texas"),
+    ("UT", "Utah"), ("VT", "Vermont"), ("VA", "Virginia"), ("WA", "Washington"),
+    ("WV", "West Virginia"), ("WI", "Wisconsin"), ("WY", "Wyoming"),
+]
+US_STATE_BY_CODE = {code: name for code, name in US_STATES}
+
 
 @app.before_request
 def _bind_db_target():
@@ -116,6 +134,22 @@ def _flash_stripe_result(result, *, created=False):
     flash(f"Stripe code NOT created: {result.message}", "error")
 
 
+def _bg_stripe_sync(pilotid, target, *, created=False, before=None):
+    """Sync Stripe off the request path so create/update can redirect immediately."""
+    try:
+        db.set_active_target(target)
+        after = db.get_pilot(pilotid)
+        if not after:
+            return
+        if created:
+            stripe_pilots.sync_after_create(after)
+        else:
+            stripe_pilots.sync_after_update(before or after, after)
+    except Exception:
+        # Calendar shows Missing + Retry if this fails.
+        pass
+
+
 def _features_payload(pilotid=None):
     return {
         "usage_daily": db.feature_usage_daily(pilotid),
@@ -142,10 +176,13 @@ def _usage_payload(pilotid=None, include_types=False):
 
 def _pilot_form_values(form=None, pilot=None):
     if form is not None:
+        state_code = (form.get("stateCode") or "").strip().upper()
+        state_name = US_STATE_BY_CODE.get(state_code, "")
         return {
             "name": form.get("name", "").strip(),
-            "school": form.get("school", "").strip(),
-            "districtid": form.get("districtid", "").strip(),
+            "country": form.get("country", "").strip() or "United States",
+            "state": state_name,
+            "stateCode": state_code,
             "code": form.get("code", "").strip(),
             "start": form.get("start", "").strip(),
             "end": form.get("end", "").strip(),
@@ -153,28 +190,32 @@ def _pilot_form_values(form=None, pilot=None):
     if pilot:
         return {
             "name": pilot["name"],
-            "school": pilot["school"],
-            "districtid": str(pilot["districtid"]) if pilot.get("districtid") is not None else "",
+            "country": pilot.get("country") or "United States",
+            "state": pilot.get("state") or "",
+            "stateCode": (pilot.get("stateCode") or "").upper(),
             "code": pilot["code"],
             "start": _dt_local(pilot["startTime"]),
             "end": _dt_local(pilot["endTime"]),
         }
-    return {"name": "", "school": "", "districtid": "", "code": "", "start": "", "end": ""}
+    return {
+        "name": "",
+        "country": "United States",
+        "state": "",
+        "stateCode": "",
+        "code": "",
+        "start": "",
+        "end": "",
+    }
 
 
 def _validate_pilot(values):
     errors = []
     if not values["name"]:
         errors.append("Name is required.")
-    if not values["school"]:
-        errors.append("School is required.")
-    if not values["districtid"]:
-        errors.append("District is required.")
-    else:
-        try:
-            int(values["districtid"])
-        except (TypeError, ValueError):
-            errors.append("Choose a valid district.")
+    if not values["country"]:
+        errors.append("Country is required.")
+    if not values["stateCode"] or values["stateCode"] not in US_STATE_BY_CODE:
+        errors.append("Choose a valid state.")
     code_err = stripe_pilots.validate_code_format(values.get("code") or "")
     if code_err:
         errors.append(code_err)
@@ -294,7 +335,6 @@ def api_pilot_calendar():
 @app.route("/pilot/maker", methods=["GET", "POST"])
 @admin_required
 def pilot_maker():
-    districts = db.all_districts()
     raw_id = request.args.get("pilotid")
     pilotid = None
     if raw_id not in (None, ""):
@@ -306,7 +346,7 @@ def pilot_maker():
                 section="pilot",
                 pilotid=None,
                 values=_pilot_form_values(),
-                districts=districts,
+                states=US_STATES,
                 errors=["That pilot was not found."],
                 pilot=None,
                 stripe=stripe_pilots.stripe_ui_state(None),
@@ -318,7 +358,7 @@ def pilot_maker():
                 section="pilot",
                 pilotid=None,
                 values=_pilot_form_values(),
-                districts=districts,
+                states=US_STATES,
                 errors=["That pilot was not found."],
                 pilot=None,
                 stripe=stripe_pilots.stripe_ui_state(None),
@@ -332,48 +372,66 @@ def pilot_maker():
     if request.method == "POST":
         values = _pilot_form_values(form=request.form)
         errors = _validate_pilot(values)
-        district = None
         if not errors:
-            district = db.get_district(int(values["districtid"]))
-            if not district:
-                errors.append("Choose a valid district.")
-        if not errors:
-            try:
-                if stripe_pilots.code_taken_in_stripe(values["code"], pilotid=pilotid):
-                    errors.append("That code already exists in Stripe.")
-            except stripe_pilots.StripePilotsError as exc:
-                errors.append(exc.message)
-        if not errors:
+            # Never block the redirect on Stripe — a slow check + double-click
+            # left users on this form with "already in use" after a successful save.
+            if not pilotid:
+                already = db.get_pilot_by_code(values["code"])
+                if already:
+                    flash("Pilot created.", "success")
+                    return redirect(url_for("pilot_calendar"), code=303)
+            target = db.db_target()
             try:
                 if pilotid:
                     before = existing or db.get_pilot(pilotid)
-                    db.update_pilot(
-                        pilotid,
-                        values["name"],
-                        values["school"],
-                        values["code"],
-                        values["start_utc"],
-                        values["end_utc"],
-                        district["districtid"],
-                    )
-                    flash("Pilot updated.", "success")
-                    after = db.get_pilot(pilotid)
-                    _flash_stripe_result(stripe_pilots.sync_after_update(before, after))
+                    # Code rename: only reject if another pilot already owns it.
+                    if values["code"] != before.get("code"):
+                        taken = db.get_pilot_by_code(values["code"])
+                        if taken and int(taken["pilotid"]) != int(pilotid):
+                            errors.append("That pilot code is already in use.")
+                    if not errors:
+                        db.update_pilot(
+                            pilotid,
+                            values["name"],
+                            values["code"],
+                            values["start_utc"],
+                            values["end_utc"],
+                            values["country"],
+                            values["state"],
+                            values["stateCode"],
+                        )
+                        flash("Pilot updated.", "success")
+                        threading.Thread(
+                            target=_bg_stripe_sync,
+                            args=(pilotid, target),
+                            kwargs={"created": False, "before": before},
+                            daemon=True,
+                        ).start()
+                        return redirect(url_for("pilot_calendar"), code=303)
                 else:
                     new_id = db.create_pilot(
                         values["name"],
-                        values["school"],
                         values["code"],
                         values["start_utc"],
                         values["end_utc"],
-                        district["districtid"],
+                        values["country"],
+                        values["state"],
+                        values["stateCode"],
                     )
                     flash("Pilot created.", "success")
-                    pilot = db.get_pilot(new_id)
-                    _flash_stripe_result(stripe_pilots.sync_after_create(pilot), created=True)
-                return redirect(url_for("pilot_calendar"))
+                    threading.Thread(
+                        target=_bg_stripe_sync,
+                        args=(new_id, target),
+                        kwargs={"created": True},
+                        daemon=True,
+                    ).start()
+                    return redirect(url_for("pilot_calendar"), code=303)
             except pymysql.err.IntegrityError as exc:
                 if exc.args and exc.args[0] == DUPLICATE_CODE:
+                    # Double-submit after a successful first save — go to calendar.
+                    if not pilotid:
+                        flash("Pilot created.", "success")
+                        return redirect(url_for("pilot_calendar"), code=303)
                     errors.append("That pilot code is already in use.")
                 else:
                     errors.append("Could not save this pilot.")
@@ -386,7 +444,7 @@ def pilot_maker():
         section="pilot",
         pilotid=pilotid,
         values=values,
-        districts=districts,
+        states=US_STATES,
         errors=errors,
         pilot=pilot,
         stripe=stripe_pilots.stripe_ui_state(pilot),

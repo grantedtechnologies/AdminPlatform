@@ -2,7 +2,7 @@
 {% block title %}{% if pilotid %}Edit pilot{% else %}Pilot Maker{% endif %} — Granted Admin{% endblock %}
 {% block content %}
   <h1>{% if pilotid %}Edit pilot{% else %}Pilot Maker{% endif %}</h1>
-  <p class="lede">{% if pilotid %}Update this window, then return to the calendar.{% else %}Create a pilot window and code.{% endif %}</p>
+  <p class="lede">{% if pilotid %}Update this window, then return to the calendar.{% else %}Create a pilot window and code for a state.{% endif %}</p>
   {% if errors %}
     <ul class="flash error">
       {% for error in errors %}<li>{{ error }}</li>{% endfor %}
@@ -24,24 +24,19 @@
       {% endif %}
     </section>
   {% endif %}
-  <form class="stack panel" method="post">
+  <form class="stack panel" method="post" id="pilot-form">
     <label>Name
       <input type="text" name="name" value="{{ values.name }}" required />
     </label>
-    <label>School
-      <input type="text" name="school" value="{{ values.school }}" required />
+    <label>Country
+      <input type="text" name="country" value="{{ values.country }}" required />
     </label>
-    <label>Filter districts
-      <input type="search" id="district-filter" placeholder="Type a district, city, or state" autocomplete="off" />
-    </label>
-    <label>District
-      <select name="districtid" id="districtid" required>
-        <option value="">Select a district</option>
-        {% for d in districts %}
-          <option value="{{ d.districtid }}"
-            data-search="{{ d.name }} {{ d.city }} {{ d.state }}"
-            {% if values.districtid == d.districtid|string %}selected{% endif %}>
-            {{ d.name }} — {{ d.city }}, {{ d.state }}
+    <label>State
+      <select name="stateCode" required>
+        <option value="">Select a state</option>
+        {% for code, name in states %}
+          <option value="{{ code }}" {% if values.stateCode == code %}selected{% endif %}>
+            {{ name }}
           </option>
         {% endfor %}
       </select>
@@ -56,7 +51,7 @@
     <label>End ({{ tz_label }})
       <input type="datetime-local" name="end" value="{{ values.end }}" required />
     </label>
-    <button type="submit">{% if pilotid %}Save changes{% else %}Create pilot{% endif %}</button>
+    <button type="submit" id="pilot-submit">{% if pilotid %}Save changes{% else %}Create pilot{% endif %}</button>
   </form>
   {% if pilotid %}
     <form class="stack panel danger-panel" method="post" action="{{ url_for('pilot_delete', pilotid=pilotid) }}"
@@ -70,16 +65,21 @@
 {% block extra_js %}
 <script>
   (function () {
-    const filter = document.getElementById("district-filter");
-    const select = document.getElementById("districtid");
-    if (!filter || !select) return;
-    const options = Array.from(select.querySelectorAll("option[data-search]"));
-    filter.addEventListener("input", function () {
-      const q = filter.value.trim().toLowerCase();
-      options.forEach(function (option) {
-        const match = !q || option.dataset.search.toLowerCase().includes(q);
-        option.hidden = !match;
-      });
+    const form = document.getElementById("pilot-form");
+    const btn = document.getElementById("pilot-submit");
+    if (!form || !btn) return;
+    let sent = false;
+    form.addEventListener("submit", function (event) {
+      if (sent) {
+        event.preventDefault();
+        return;
+      }
+      sent = true;
+      // Disable after submit starts so the request is not cancelled.
+      setTimeout(function () {
+        btn.disabled = true;
+        btn.textContent = "Saving…";
+      }, 0);
     });
   })();
 </script>

@@ -4,15 +4,15 @@
 -- that were actually stored.
 -- Sessions and Events use the same timestamps as the rows above.
 
-INSERT INTO `Teachers` (fname, lname, email, password, verified, createdAt, school, district) VALUES
-  ('Maya', 'Chen', 'maya.chen@granted.local', 'password123', 1, '2026-06-01 09:00:00', 'Lincoln Elementary', 'Metro District'),
-  ('Luis', 'Rivera', 'luis.rivera@granted.local', 'password123', 1, '2026-09-01 09:00:00', 'Grant Middle', 'Metro District'),
-  ('Priya', 'Nair', 'priya.nair@granted.local', 'password123', 1, '2026-08-15 09:00:00', 'Riverside Elementary', 'Riverside Unified'),
-  ('Sam', 'Ortiz', 'sam.ortiz@granted.local', 'password123', 1, '2026-01-20 09:00:00', 'Grant Middle', 'Metro District');
+INSERT INTO `Teachers` (fname, lname, email, password, verified, createdAt, country, state, city, school, district) VALUES
+  ('Maya', 'Chen', 'maya.chen@granted.local', 'password123', 1, '2026-06-01 09:00:00', 'United States', 'California', 'Riverside', 'Lincoln Elementary', 'Metro District'),
+  ('Luis', 'Rivera', 'luis.rivera@granted.local', 'password123', 1, '2026-09-01 09:00:00', 'United States', 'California', 'Riverside', 'Grant Middle', 'Metro District'),
+  ('Priya', 'Nair', 'priya.nair@granted.local', 'password123', 1, '2026-08-15 09:00:00', 'United States', 'California', 'Riverside', 'Riverside Elementary', 'Riverside Unified'),
+  ('Sam', 'Ortiz', 'sam.ortiz@granted.local', 'password123', 1, '2026-01-20 09:00:00', 'United States', 'Pennsylvania', 'Philadelphia', 'Grant Middle', 'Metro District');
 
-INSERT INTO `Pilot` (name, school, code, startTime, endTime, createdAt) VALUES
-  ('Riverside USD 2026', 'Riverside Unified', 'RIVERSIDE2026', '2026-08-01 00:00:00', '2027-06-30 23:59:59', '2026-08-01 09:00:00'),
-  ('Spring pilot 2026', 'Grant Middle', 'SPRING2026', '2026-01-15 00:00:00', '2026-10-20 23:59:59', '2026-01-10 09:00:00');
+INSERT INTO `Pilot` (country, state, stateCode, name, code, startTime, endTime, createdAt) VALUES
+  ('United States', 'California', 'CA', 'Riverside USD 2026', 'RIVERSIDE2026', '2026-08-01 00:00:00', '2027-06-30 23:59:59', '2026-08-01 09:00:00'),
+  ('United States', 'Pennsylvania', 'PA', 'Spring pilot 2026', 'SPRING2026', '2026-01-15 00:00:00', '2026-10-20 23:59:59', '2026-01-10 09:00:00');
 
 INSERT INTO `class` (teacherid, subject, name, `type`, gradeLevel, schoolYear, createdAt, updatedAt) VALUES
   (1, 'English', '1st Period ELA', 'standard', 4, '2026-2027', '2026-09-28 15:00:00', '2026-09-28 15:00:00'),

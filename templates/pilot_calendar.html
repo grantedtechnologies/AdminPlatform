@@ -15,7 +15,7 @@
           <thead>
             <tr>
               <th>Name</th>
-              <th>School</th>
+              <th>State</th>
               <th>Code</th>
               <th>Start ({{ tz_label }})</th>
               <th>End ({{ tz_label }})</th>
@@ -29,7 +29,7 @@
             {% for p in pilots %}
               <tr>
                 <td>{{ p.name }}</td>
-                <td>{{ p.school }}</td>
+                <td>{% if p.stateCode %}{{ p.state }} ({{ p.stateCode }}){% else %}{{ p.state }}{% endif %}</td>
                 <td>{{ p.code }}</td>
                 <td>{{ p.startDisplay }}</td>
                 <td>{{ p.endDisplay }}</td>

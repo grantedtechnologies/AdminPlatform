@@ -239,7 +239,7 @@ def failure_summary():
 
 def all_pilots():
     sql = """
-        SELECT p.pilotid, p.name, p.school, p.code, p.startTime, p.endTime,
+        SELECT p.pilotid, p.name, p.country, p.state, p.stateCode, p.code, p.startTime, p.endTime,
                p.stripeCouponId, p.stripePromotionCodeId,
           CASE WHEN UTC_TIMESTAMP() < p.startTime THEN 'upcoming'
                WHEN UTC_TIMESTAMP() > p.endTime THEN 'ended' ELSE 'active' END AS status,
@@ -264,32 +264,42 @@ def get_district(districtid):
     return _query(sql, (districtid,), one=True)
 
 
-def create_pilot(name, school, code, start, end, districtid):
+def create_pilot(name, code, start, end, country, state, state_code):
     sql = """
-        INSERT INTO Pilot (districtid, name, school, code, startTime, endTime, createdAt)
-        VALUES (%s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())
+        INSERT INTO Pilot (country, state, stateCode, name, code, startTime, endTime, createdAt)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())
     """
-    return _execute(sql, (districtid, name, school, code, start, end))
+    return _execute(sql, (country, state, state_code, name, code, start, end))
 
 
 def get_pilot(pilotid):
     sql = """
-        SELECT p.pilotid, p.name, p.school, p.code, p.startTime, p.endTime,
-               p.districtid, d.name AS district,
+        SELECT p.pilotid, p.name, p.country, p.state, p.stateCode, p.code, p.startTime, p.endTime,
                p.stripeCouponId, p.stripePromotionCodeId
         FROM Pilot p
-        LEFT JOIN districts d ON d.districtid = p.districtid
         WHERE p.pilotid = %s
     """
     return _query(sql, (pilotid,), one=True)
 
 
-def update_pilot(pilotid, name, school, code, start, end, districtid):
+def get_pilot_by_code(code):
     sql = """
-        UPDATE Pilot SET districtid = %s, name = %s, school = %s, code = %s, startTime = %s, endTime = %s
+        SELECT p.pilotid, p.name, p.country, p.state, p.stateCode, p.code, p.startTime, p.endTime,
+               p.stripeCouponId, p.stripePromotionCodeId
+        FROM Pilot p
+        WHERE p.code = %s
+    """
+    return _query(sql, (code,), one=True)
+
+
+def update_pilot(pilotid, name, code, start, end, country, state, state_code):
+    sql = """
+        UPDATE Pilot
+        SET country = %s, state = %s, stateCode = %s, name = %s, code = %s,
+            startTime = %s, endTime = %s
         WHERE pilotid = %s
     """
-    _execute(sql, (districtid, name, school, code, start, end, pilotid))
+    _execute(sql, (country, state, state_code, name, code, start, end, pilotid))
 
 
 def set_pilot_stripe_ids(pilotid, coupon_id, promotion_code_id):

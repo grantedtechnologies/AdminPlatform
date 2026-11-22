@@ -428,8 +428,8 @@ def sync_after_update(before: dict, after: dict) -> StripeSyncResult:
     """Keep Stripe in step after a successful DB update.
 
     Start-only changes: no Stripe update (codes have no start).
-    Name/school/district-only: no Stripe update.
-    """
+    Name/country/state-only: no Stripe update.
+  """
     if not configured():
         msg = (
             "Staging Stripe is not configured (set STAGING_STRIPE_SECRET_KEY)."
@@ -443,7 +443,7 @@ def sync_after_update(before: dict, after: dict) -> StripeSyncResult:
     missing = not after.get("stripePromotionCodeId") or not after.get("stripeCouponId")
 
     if not code_changed and not end_changed and not missing:
-        # Start / name / school / district only — nothing to do in Stripe.
+        # Start / name / country / state only — nothing to do in Stripe.
         return StripeSyncResult(
             ok=True,
             configured=True,
